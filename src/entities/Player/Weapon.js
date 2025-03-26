@@ -25,7 +25,7 @@ export default class Weapon extends Component{
         this.magAmmo = 30;
         this.ammoPerMag = 30;
         this.ammo = 100;
-        this.damage = 2;
+        this.damage = 25;
         this.uimanager = null;
         this.reloading = false;
         this.hitResult = {intersectionPoint: new THREE.Vector3(), intersectionNormal: new THREE.Vector3()};
@@ -141,19 +141,54 @@ export default class Weapon extends Component{
     }
 
     Raycast(){
+        // Get ray from camera center
         const start = new THREE.Vector3(0.0, 0.0, -1.0);
         start.unproject(this.camera);
         const end = new THREE.Vector3(0.0, 0.0, 1.0);
         end.unproject(this.camera);
-
-        const collisionMask = CollisionFilterGroups.AllFilter & ~CollisionFilterGroups.SensorTrigger;
         
+        // Debug line to show the ray
+        console.warn("Firing weapon ray from", start, "to", end);
+
+        // Make sure we include enemy collision objects
+        const collisionMask = CollisionFilterGroups.AllFilter;
+        
+        // Cast the ray and check for hits
         if(AmmoHelper.CastRay(this.world, start, end, this.hitResult, collisionMask)){
-            const ghostBody = Ammo.castObject( this.hitResult.collisionObject, Ammo.btPairCachingGhostObject );
-            const rigidBody = Ammo.castObject( this.hitResult.collisionObject, Ammo.btRigidBody ); 
-            const entity = ghostBody.parentEntity || rigidBody.parentEntity;
+            console.warn("Hit detected!", this.hitResult);
             
-            entity && entity.Broadcast({'topic': 'hit', from: this.parent, amount: this.damage, hitResult: this.hitResult});
+            try {
+                // Try to get the hit object - use both ghost and rigid body casting
+                const ghostBody = Ammo.castObject(this.hitResult.collisionObject, Ammo.btPairCachingGhostObject);
+                const rigidBody = Ammo.castObject(this.hitResult.collisionObject, Ammo.btRigidBody);
+                
+                // Get the parent entity from either ghost or rigid body
+                let entity = null;
+                if (ghostBody && ghostBody.parentEntity) {
+                    entity = ghostBody.parentEntity;
+                } else if (rigidBody && rigidBody.parentEntity) {
+                    entity = rigidBody.parentEntity;
+                }
+                
+                console.warn("Entity found:", entity);
+                
+                if (entity) {
+                    // Apply damage with higher value
+                    entity.Broadcast({
+                        'topic': 'hit',
+                        from: this.parent,
+                        amount: this.damage * 5, // Increase damage for testing
+                        hitResult: this.hitResult
+                    });
+                    
+                    // Add visual feedback
+                    this.Broadcast({topic: 'hit_feedback'});
+                }
+            } catch (e) {
+                console.error("Error in raycast processing:", e);
+            }
+        } else {
+            console.warn("No hit detected");
         }
     }
 

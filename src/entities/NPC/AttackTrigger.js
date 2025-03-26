@@ -10,7 +10,7 @@ export default class AttackTrigger extends Component{
         //Relative to parent
         this.localTransform = new Ammo.btTransform();
         this.localTransform.setIdentity();
-        this.localTransform.getOrigin().setValue(0.0, 1.0, 1.0);
+        this.localTransform.getOrigin().setValue(0.0, 1.0, 1.5); // Extend reach slightly
 
         this.quat = new Ammo.btQuaternion();
 
@@ -18,10 +18,15 @@ export default class AttackTrigger extends Component{
     }
 
     SetupTrigger(){
-        const shape = new Ammo.btSphereShape(0.4);
+        // Increase size of attack trigger to make detection more reliable
+        const shape = new Ammo.btSphereShape(0.8); 
         this.ghostObj = AmmoHelper.CreateTrigger(shape);
 
+        // Add to physics world with proper collision filtering
         this.physicsWorld.addCollisionObject(this.ghostObj, CollisionFilterGroups.SensorTrigger);
+        
+        // Store reference to parent entity for event handling
+        this.ghostObj.parentEntity = this.parent;
     }
 
     Initialize(){
@@ -30,7 +35,13 @@ export default class AttackTrigger extends Component{
     }
 
     PhysicsUpdate(world, t){
+        // Check if we're overlapping with player
         this.overlapping = AmmoHelper.IsTriggerOverlapping(this.ghostObj, this.playerPhysics.body);
+        
+        // Debug logging
+        if (this.overlapping) {
+            console.warn("Player in attack range!");
+        }
     }
     
     Update(t){

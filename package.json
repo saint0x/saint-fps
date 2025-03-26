@@ -10,7 +10,7 @@
     "webpack"
   ],
   "scripts": {
-    "start": "webpack serve",
+    "start": "NODE_OPTIONS=--openssl-legacy-provider webpack serve",
     "prebuild": "npx rimraf ./build && npx mkdirp ./build",
     "build": "webpack --mode production"
   },

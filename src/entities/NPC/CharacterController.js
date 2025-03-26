@@ -159,33 +159,73 @@ export default class CharacterController extends Component{
     }
 
     TakeHit = msg => {
+        // Apply damage
+        console.warn("ENEMY HIT DETECTED!", msg);
+        
         this.health = Math.max(0, this.health - msg.amount);
+        
+        // Debug log with more visibility
+        console.error(`*** ENEMY TOOK ${msg.amount} DAMAGE. HEALTH: ${this.health} ***`);
 
-        if(this.health == 0){
+        // Visual feedback for hit - make enemy flash red
+        if (this.skinnedmesh) {
+            this.skinnedmesh.material.emissive = new THREE.Color(0xff0000);
+            setTimeout(() => {
+                this.skinnedmesh.material.emissive = new THREE.Color(0x000000);
+            }, 100);
+        }
+
+        if(this.health <= 0){
+            // Enemy died
+            console.error("ENEMY DIED!");
             this.stateMachine.SetState('dead');
-        }else{
+            // Optional: Add death animation or effects
+            this.Broadcast({topic: 'enemy_died'});
+        } else {
+            // Enemy is still alive
             const stateName = this.stateMachine.currentState.Name;
-            if(stateName == 'idle' || stateName == 'patrol'){
+            if(stateName === 'idle' || stateName === 'patrol'){
+                // Switch to chase state when hit
                 this.stateMachine.SetState('chase');
             }
+            // Add hit reaction animation
+            this.Broadcast({topic: 'enemy_hit'});
         }
     }
 
     MoveAlongPath(t){
         if(!this.path?.length) return;
 
-        const target = this.path[0].clone().sub( this.model.position );
+        // Debug the path
+        console.warn("Moving along path", this.path);
+
+        // Get the next point in the path
+        const target = this.path[0].clone().sub(this.model.position);
         target.y = 0.0;
-       
+        
+        // Check if we need to move to the next point (if we're close enough to current target)
         if (target.lengthSq() > 0.1 * 0.1) {
+            // Not yet at target point, move towards it
             target.normalize();
+            
+            // Rotate towards target
             this.tempRot.setFromUnitVectors(this.forwardVec, target);
-            this.model.quaternion.slerp(this.tempRot,4.0 * t);
+            this.model.quaternion.slerp(this.tempRot, 4.0 * t);
+            
+            // Force move the model if root motion isn't working
+            // This is a direct position update to ensure movement
+            if (this.canMove) {
+                const moveSpeed = 2.5; // Adjust speed as needed
+                const movement = target.clone().multiplyScalar(moveSpeed * t);
+                this.model.position.add(movement);
+            }
         } else {
-            // Remove node from the path we calculated
+            // Reached current target, move to next point in path
+            console.warn("Reached path point, moving to next");
             this.path.shift();
 
-            if(this.path.length===0){
+            if(this.path.length === 0){
+                console.warn("Reached end of path");
                 this.Broadcast({topic: 'nav.end', agent: this});
             }
         }
@@ -198,7 +238,7 @@ export default class CharacterController extends Component{
     }
 
     ApplyRootMotion(){
-        if(this.canMove){
+        if(this.canMove && this.stateMachine?.currentState?.Name !== 'chase'){
             const vel = this.rootBone.position.clone();
             vel.sub(this.lastPos).multiplyScalar(0.01);
             vel.y = 0;
@@ -210,7 +250,7 @@ export default class CharacterController extends Component{
             }
         }
 
-        //Reset the root bone horizontal position
+        // Reset the root bone horizontal position
         this.lastPos.copy(this.rootBone.position);
         this.rootBone.position.z = this.rootBone.refPos.z;
         this.rootBone.position.x = this.rootBone.refPos.x;
